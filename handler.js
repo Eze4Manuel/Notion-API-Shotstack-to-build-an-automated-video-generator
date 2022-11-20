@@ -1,19 +1,11 @@
 
 const axios = require("axios");
-const { Client, LogLevel } = require("@notionhq/client");
-const { version, shotstack_base_url } = require("./config");
-const { template_data } = require("./data");
+const { version, shotstack_base_url, notion_base_url } = require("./config");
+const { template_data } = require("./functions");
 const { extractMergeFields, get_merge_object } = require("./functions");
 
-exports.shotstackRequest = (req, res, merge_array) => {
+const shotstackRequest = (req, res, merge_array) => {
     try {
-
-        // Initializing a client
-        const notion = new Client({
-            auth: process.env.NOTION_TOKEN,
-            logLevel: LogLevel.DEBUG,
-        })
-
         const headers = {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
@@ -35,33 +27,61 @@ exports.shotstackRequest = (req, res, merge_array) => {
     }
 }
 
-exports.renderVideo = () => {
+exports.renderVideo = (req, res) => {
     try {
         (async () => {
-            const response = await notion.search({
-                filter: {
-                    value: 'database',
-                    property: 'object'
+            const headers = {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${process.env.NOTION_TOKEN}`,
+                'Notion-Version': "2022-06-28"
+            };
+            const body_data = {
+                "filter": {
+                    "value": "database",
+                    "property": "object"
                 }
-            });
-            let database_id = response.results.find(elem => (
-                (elem.title.find(item => (item.plain_text == req.query.database_name)))
-            ))?.id;
-
-            if (database_id !== undefined) {
-                const result = await notion.databases.query({
-                    database_id: database_id
-                });
-                const merge_array = await extractMergeFields(result.results);
-                if (req.query.street_address === undefined) return res.status(400).json({ data: merge_array, msg: 'Select a street address and call this endpoint again with the value for the street address', status: "success" });
-                const merge_object = await get_merge_object(req.query.street_address, merge_array);
-                if (merge_object == undefined) return res.status(400).json({ data: 'error', msg: 'No match for street address', status: "success" });
-                else {
-                    return await shotstackRequest(req, res, template_data(merge_object));
-                }
-            } else {
-                return res.status(400).json({ data: 'error', msg: 'No such database found', status: "success" });
             }
+            // Searching for list of databases belonging to the used API token
+            axios.post(`${notion_base_url}v1/search`, body_data, {
+                headers: headers
+            }).then(async (response) => {
+
+                // extracting ID of the database that matches the database name passed alongside the request
+                let database_id = response.data.results.find(elem => (
+                    (elem.title.find(item => (item.plain_text == req.query.database_name)))
+                ))?.id;
+
+                // checking if database exists
+                if (database_id !== undefined) {
+                    axios.post(`${notion_base_url}v1/databases/${database_id}/query`, {}, {
+                        headers: headers
+                    }).then(async (response) => {
+
+                        const merge_array = await extractMergeFields(response.data.results);
+
+                        // returning database query if specific row is not selected
+                        if (req.query.street_address === undefined) return res.status(400).json({ data: merge_array, msg: 'Select a street address and call this endpoint again with the value for the street address', status: "success" });
+
+                        const merge_object = await get_merge_object(req.query.street_address, merge_array);
+
+                        // checking if street address exist in database
+                        if (merge_object == undefined) return res.status(400).json({ data: 'error', msg: 'No match for street address', status: "success" });
+
+                        // rendeing video using database properties
+                        else return await shotstackRequest(req, res, template_data(merge_object));
+
+                    }).catch((error) => {
+                        console.log(error);
+                        return res.status(400).json({ data: {}, msg: 'No data fetched', status: "failed" });
+                    })
+                } else {
+                    return res.status(400).json({ data: 'error', msg: 'No such database found', status: "success" });
+                }
+            }).catch((error) => {
+                console.log(error);
+                return res.status(400).json({ data: {}, msg: 'No data fetched', status: "failed" });
+            })
         })();
     } catch (error) {
         console.log(error);

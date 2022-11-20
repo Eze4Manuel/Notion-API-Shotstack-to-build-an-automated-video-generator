@@ -1,5 +1,8 @@
 
+const { template } = require("./data");
+
 exports.extractMergeFields = (responseResult) => {
+    console.log(responseResult);
     const merger_array = responseResult.map((elem, ind) => {
         const merger = {}
         merger.id = ind + 1;
@@ -36,3 +39,11 @@ exports.get_merge_object = (street_address, merge_array) => {
         placeholder_fields.includes(elem.find)
     )));
 }
+
+
+exports.template_data = (merge_array) => {
+    return {
+        "merge": [...merge_array],
+        ...template
+    }
+}   

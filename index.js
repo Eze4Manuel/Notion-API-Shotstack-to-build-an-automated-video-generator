@@ -2,11 +2,8 @@ const express = require('express');
 require("dotenv").config();
 const app = express();
 const e = require('express');
-const { queryShotstackStatus } = require("./handler");
-
+const { queryShotstackStatus, renderVideo } = require("./handler");
 const port = 3000;
-
-
 
 app.get('/process-video', async (req, res) => {
     await renderVideo(req, res)

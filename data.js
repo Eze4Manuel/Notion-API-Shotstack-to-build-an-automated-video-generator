@@ -1,5 +1,5 @@
 
-const template = {
+exports.template = {
     "timeline": {
         "soundtrack": {
             "src": "https://shotstack-assets.s3.ap-southeast-2.amazonaws.com/music/unminus/ambisax.mp3",
@@ -316,10 +316,3 @@ const template = {
         }
     }
 }
-
-exports.template_data = (merge_array) => {
-    return {
-        "merge": [...merge_array],
-        ...template
-    }
-}   
